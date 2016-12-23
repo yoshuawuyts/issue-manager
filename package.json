@@ -1,0 +1,27 @@
+{
+  "name": "issue-manager",
+  "version": "1.0.0",
+  "private": true,
+  "description": "manage github issues",
+  "main": "index.js",
+  "scripts": {
+    "build": "bankai build -O client.js",
+    "start": "node . | garnish",
+    "test": "standard"
+  },
+  "keywords": [],
+  "author": "Yoshua Wuyts <yoshuawuyts@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "bankai": "^5.1.3",
+    "garnish": "^5.2.0",
+    "standard": "^8.6.0"
+  },
+  "dependencies": {
+    "choo": "^4.0.3",
+    "choo-log": "^3.0.0",
+    "github": "^7.1.0",
+    "tachyons": "^4.6.1",
+    "xhr": "^2.3.2"
+  }
+}
