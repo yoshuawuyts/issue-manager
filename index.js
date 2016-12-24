@@ -20,9 +20,9 @@ var auth = Auth(db, {
 })
 
 app.router([
-  [ '/', merryAssets(assets.html) ],
-  [ '/bundle.js', merryAssets(assets.js) ],
-  [ '/bundle.css', merryAssets(assets.css) ],
+  [ '/', merryAssets(assets.html.bind(assets)) ],
+  [ '/bundle.js', merryAssets(assets.js.bind(assets)) ],
+  [ '/bundle.css', merryAssets(assets.css.bind(assets)) ],
   [ '/register', register() ],
   [ '/logout', logout() ],
   [ '/verify', verify() ],
@@ -50,13 +50,13 @@ function verify () {
       if (err) console.log(err)
     })
 
-    // auth.verify('github', {
-    //   email: 'none@none.ca',
-    //   password: '1234'
-    // }, function (err, result) {
-    //   if (err) return merry.error(400, 'cannot verify user account', err)
-    //   done(null, 'verified ok')
-    // })
+    auth.verify('github', {
+      email: 'none@none.ca',
+      password: '1234'
+    }, function (err, result) {
+      if (err) return merry.error(400, 'cannot verify user account', err)
+      done(null, 'verified ok')
+    })
   }
 }
 
@@ -66,10 +66,9 @@ function logout () {
   }
 }
 
-function merryAssets (handler) {
+function merryAssets (assets) {
   return function (req, res, ctx, done) {
-    console.log(res)
-    done(null, handler(req, res))
+    done(null, assets(req, res))
   }
 }
 
