@@ -1,5 +1,5 @@
-var basic = require('township-auth/basic')
 var Auth = require('township-auth')
+var request = require('request')
 var bankai = require('bankai')
 var merry = require('merry')
 var memdb = require('memdb')
@@ -16,30 +16,23 @@ var app = merry()
 var db = memdb()
 
 var auth = Auth(db, {
-  providers: { basic: basic }
+  providers: { github: githubProvider }
 })
 
-
-function createAuth (ctx) {
-}
-
-
-
-createAuth({email: 'none@none.ca', password: '1234' })
-
 app.router([
-  [ '/', function (req, res, ctx, done) {
-    done(null, assets.html(req, res))
-  }],
-  [ '/bundle.js', function (req, res, ctx, done) {
-    done(null, assets.js(req, res))
-  }],
-  [ '/bundle.css', function (req, res, ctx, done) {
-    done(null, assets.css(req, res))
-  }],
-  [ '/register', function (req, res, ctx, done) {
+  [ '/', merryAssets(assets.html) ],
+  [ '/bundle.js', merryAssets(assets.js) ],
+  [ '/bundle.css', merryAssets(assets.css) ],
+  [ '/register', register() ],
+  [ '/logout', logout() ],
+  [ '/verify', verify() ],
+  [ '/404', notFound() ]
+])
+
+function register () {
+  return function (req, res, ctx, done) {
     auth.create({
-      basic: {
+      github: {
         email: 'none@none.ca',
         password: '1234'
       }
@@ -47,35 +40,51 @@ app.router([
       if (err) return merry.error(400, 'cannot create a user account', err)
       done(null, 'ok')
     })
-  }],
-  [ '/logout', function (req, res, ctx, done) {
-    done(null, assets.js(req, res))
-  }],
-  [ '/verify', function (req, res, ctx, done) {
-    auth.verify('basic', {
-      email: 'none@none.ca',
-      password: '1234'
-    }, function (err, result) {
-      if (err) return merry.error(400, 'cannot verify user account', err)
-      done(null, 'verified ok')
+  }
+}
+
+function verify () {
+  return function (req, res, ctx, done) {
+    var url = "https://github.com/login/oauth/authorize?client_id='0fe9211b16ef295c52d9'&redirect_url=http://localhost:8080/verify"
+    request(url, function (err, res, body) {
+      if (err) console.log(err)
     })
-  }],
-  [ '/404', notFound() ]
-])
 
+    // auth.verify('github', {
+    //   email: 'none@none.ca',
+    //   password: '1234'
+    // }, function (err, result) {
+    //   if (err) return merry.error(400, 'cannot verify user account', err)
+    //   done(null, 'verified ok')
+    // })
+  }
+}
 
+function logout () {
+  return function (req, res, ctx, done) {
+    done(null, 'logout')
+  }
+}
 
-// /login
-// get user information, send to github for verification
-// receive token back
+function merryAssets (handler) {
+  return function (req, res, ctx, done) {
+    console.log(res)
+    done(null, handler(req, res))
+  }
+}
 
-// /redirect
-// redirect url given to github to redirect to
-
-// /logout
-// removes token from loca storage
-
-// /register
-// /verify
+function githubProvider (auth, options) {
+  return {
+    key: 'github.username',
+    create: function (key, opts) {
+      return {
+        username: ''
+      }
+    },
+    verify: function (opts, done) {
+      done()
+    }
+  }
+}
 
 app.listen(env.PORT)
