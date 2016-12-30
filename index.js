@@ -1,9 +1,11 @@
+var qs = require('querystring')
 var Auth = require('township-auth')
-var request = require('request')
 var bankai = require('bankai')
 var merry = require('merry')
 var memdb = require('memdb')
+var https = require('https')
 var path = require('path')
+var fs = require('fs')
 
 var notFound = merry.notFound
 
@@ -19,11 +21,23 @@ var auth = Auth(db, {
   providers: { github: githubProvider }
 })
 
+var cors = merry.cors({
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, GET, PUT, DELETE'
+})
+
+var config = getConfig()
+
 app.router([
   [ '/', merryAssets(assets.html.bind(assets)) ],
   [ '/bundle.js', merryAssets(assets.js.bind(assets)) ],
   [ '/bundle.css', merryAssets(assets.css.bind(assets)) ],
-  [ '/register', register() ],
+  [ '/register', {
+    'get': register(),
+    'post': register(),
+    'options': register()
+  }],
+  [ '/login', login() ],
   [ '/logout', logout() ],
   [ '/verify', verify() ],
   [ '/404', notFound() ]
@@ -31,32 +45,36 @@ app.router([
 
 function register () {
   return function (req, res, ctx, done) {
-    auth.create({
-      github: {
-        email: 'none@none.ca',
-        password: '1234'
-      }
-    }, function (err, account) {
-      if (err) return merry.error(400, 'cannot create a user account', err)
-      done(null, 'ok')
-    })
+    done(null, 'register')
   }
 }
 
 function verify () {
   return function (req, res, ctx, done) {
-    var url = "https://github.com/login/oauth/authorize?client_id='0fe9211b16ef295c52d9'&redirect_url=http://localhost:8080/verify"
-    request(url, function (err, res, body) {
-      if (err) console.log(err)
+    done(null, 'verify')
+  }
+}
+
+function login () {
+  return function (req, res, ctx, done) {
+    var queryString = qs.stringify({
+      client_id: config.authorize.oauth_client_id,
+      redirect_uri: config.authorize.oauth_redirect_uri
     })
 
-    auth.verify('github', {
-      email: 'none@none.ca',
-      password: '1234'
-    }, function (err, result) {
-      if (err) return merry.error(400, 'cannot verify user account', err)
-      done(null, 'verified ok')
+    var requestOpts = {
+      host: config.authorize.oauth_host,
+      port: config.authorize.oauth_port,
+      path: config.authorize.oauth_path,
+      method: config.authorize.oauth_method,
+      headers: { 'content-length': queryString.length }
+    }
+
+    var request = https.request(requestOpts, function (response) {
+      console.log(response)
+      done(null, response)
     })
+    request.end()
   }
 }
 
@@ -67,6 +85,12 @@ function logout () {
 }
 
 function merryAssets (assets) {
+  return function (req, res, ctx, done) {
+    done(null, assets(req, res))
+  }
+}
+
+function notFound () {
   return function (req, res, ctx, done) {
     done(null, assets(req, res))
   }
@@ -84,6 +108,11 @@ function githubProvider (auth, options) {
       done()
     }
   }
+}
+
+function getConfig () {
+  var config = fs.readFileSync(__dirname+ '/keys.json', 'utf-8')
+  return JSON.parse(config)
 }
 
 app.listen(env.PORT)

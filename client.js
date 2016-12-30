@@ -29,9 +29,9 @@ function mainView () {
 }
 
 function login () {
-  var url = '/verify'
+  var url = '/login'
   xhr(url, function (err, res, body) {
-    if (err) console.log(err)
+    // if (err) return console.log(err)
     console.log(res)
   })
 }
