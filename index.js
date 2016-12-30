@@ -71,9 +71,10 @@ function login () {
     }
 
     var request = https.request(requestOpts, function (response) {
-      console.log(response)
       done(null, response)
     })
+
+    request.write(queryString)
     request.end()
   }
 }
