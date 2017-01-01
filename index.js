@@ -1,8 +1,7 @@
+var concat = require('concat-stream')
 var qs = require('querystring')
-var Auth = require('township-auth')
 var bankai = require('bankai')
 var merry = require('merry')
-var memdb = require('memdb')
 var https = require('https')
 var path = require('path')
 var fs = require('fs')
@@ -15,73 +14,45 @@ var assets = bankai(clientPath)
 var env = merry.env({ PORT: 8080 })
 var app = merry()
 
-var db = memdb()
-
-var auth = Auth(db, {
-  providers: { github: githubProvider }
-})
-
-var cors = merry.cors({
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, GET, PUT, DELETE'
-})
-
 var config = getConfig()
 
 app.router([
   [ '/', merryAssets(assets.html.bind(assets)) ],
   [ '/bundle.js', merryAssets(assets.js.bind(assets)) ],
   [ '/bundle.css', merryAssets(assets.css.bind(assets)) ],
+  [ '/github-success', merryAssets(assets.html.bind(assets)) ],
   [ '/register', {
-    'get': register(),
-    'post': register(),
-    'options': register()
+    'post': register()
   }],
   [ '/login', login() ],
-  [ '/logout', logout() ],
-  [ '/verify', verify() ],
   [ '/404', notFound() ]
 ])
 
 function register () {
   return function (req, res, ctx, done) {
-    done(null, 'register')
-  }
-}
-
-function verify () {
-  return function (req, res, ctx, done) {
-    done(null, 'verify')
+    req.pipe(concat(function (buf) {
+      try {
+        var body = JSON.parse(buf)
+      } catch (e) {
+        return done(merry.error(400, 'error parsing json', e))
+      }
+      verify(body, done)
+    }))
   }
 }
 
 function login () {
   return function (req, res, ctx, done) {
-    var queryString = qs.stringify({
-      client_id: config.authorize.oauth_client_id,
-      redirect_uri: config.authorize.oauth_redirect_uri
-    })
-
-    var requestOpts = {
-      host: config.authorize.oauth_host,
-      port: config.authorize.oauth_port,
-      path: config.authorize.oauth_path,
-      method: config.authorize.oauth_method,
-      headers: { 'content-length': queryString.length }
-    }
-
-    var request = https.request(requestOpts, function (response) {
-      done(null, response)
-    })
-
-    request.write(queryString)
-    request.end()
-  }
-}
-
-function logout () {
-  return function (req, res, ctx, done) {
-    done(null, 'logout')
+    res.statusCode = 302
+    var url = 'https://github.com/login?client_id=0fe9211b16ef295c52d9&amp;return_to=%2Flogin%2Foauth%2Fauthorize%3Fclient_id%3D0fe9211b16ef295c52d9'
+    var body = `
+      <html>
+        <body>
+          You are being <a href=${url}>redirected</a>.
+        </body>
+      </html>
+      `
+    done(null, body)
   }
 }
 
@@ -91,28 +62,60 @@ function merryAssets (assets) {
   }
 }
 
-function notFound () {
-  return function (req, res, ctx, done) {
-    done(null, assets(req, res))
+function verify (code, done) {
+  var queryString = qs.stringify({
+    client_id: config.access.oauth_client_id,
+    client_secret: config.access.oauth_client_secret,
+    code: code.code
+  })
+
+  var opts = {
+    host: config.access.oauth_host,
+    path: config.access.oauth_path,
+    method: config.access.oauth_method,
+    headers: { 'content-length': queryString.length }
   }
+
+  var req = https.request(opts, function (response) {
+    response.pipe(concat({ encoding: 'string' }, function (str) {
+      try {
+        var body = qs.parse(str)
+      } catch (e) {
+        return done(merry.error(400, 'error parsing body', e))
+      }
+      getUser(body, done)
+    }))
+  })
+
+  req.write(queryString)
+  req.end()
 }
 
-function githubProvider (auth, options) {
-  return {
-    key: 'github.username',
-    create: function (key, opts) {
-      return {
-        username: ''
-      }
-    },
-    verify: function (opts, done) {
-      done()
+function getUser (token, done) {
+  var queryString = qs.stringify({
+    access_token: token.access_token
+  })
+
+  var opts = {
+    host: 'api.github.com',
+    path: '/user',
+    method: 'GET',
+    headers: { 
+      'content-length': queryString.length,
+      'User-Agent': 'lrlna'
     }
-  }
+  } 
+
+  var req = https.request(opts, function (response) {
+    done(null, response)
+  })
+
+  req.write(queryString)
+  req.end()
 }
 
 function getConfig () {
-  var config = fs.readFileSync(__dirname+ '/keys.json', 'utf-8')
+  var config = fs.readFileSync(path.join(__dirname, 'keys.json'), 'utf-8')
   return JSON.parse(config)
 }
 
