@@ -17,9 +17,11 @@ var app = merry()
 
 var config = fs.readFileSync(path.join(__dirname, 'keys.json'), 'utf8')
 config = JSON.parse(config)
+
 var githubConfig = {
-  githubClientId: config.id,
-  githubClientSecret: config.secret
+  githubApplicationName: config.appName,
+  githubClientSecret: config.secret,
+  githubClientId: config.id
 }
 
 app.router([
@@ -43,11 +45,11 @@ function register (githubConfig) {
     _parseJson(req, res, function (err, json) {
       if (err) return done(merry.error(400, 'error parsing JSON', err))
 
-      verify(json, function (err) {
+      verify(json, function (err, data) {
         if (err) {
           return done(merry.error(400, 'error verifying github response', err))
         }
-        done(null, 'all is good')
+        done(null, data)
       })
     })
   }
